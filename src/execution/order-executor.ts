@@ -3,10 +3,10 @@ import { Wallet } from 'ethers';
 import { Position, CopyTradingConfig, TradeExecutionResult } from '../types';
 
 /**
- * Trade Executor
+ * Order Executor
  * Handles execution of trades on Polymarket using the CLOB API
  */
-export class TradeExecutor {
+export class OrderExecutor {
   private client: ClobClient;
   private config: Required<CopyTradingConfig>;
   private apiKeyCreated: boolean = false;
@@ -50,9 +50,10 @@ export class TradeExecutor {
       await this.client.createOrDeriveApiKey();
       this.apiKeyCreated = true;
       console.log(`✅ Trade executor initialized for wallet: ${this.walletAddress}`);
-    } catch (error: any) {
-      console.error('❌ Failed to initialize trade executor:', error.message);
-      throw new Error(`Failed to initialize trade executor: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('❌ Failed to initialize trade executor:', message);
+      throw new Error(`Failed to initialize trade executor: ${message}`);
     }
   }
 
@@ -149,11 +150,12 @@ export class TradeExecutor {
       this.config.onTradeExecuted(result);
       
       return result;
-    } catch (error: any) {
-      const errorMsg = error.message || 'Unknown error';
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      const errorMsg = err.message || 'Unknown error';
       console.error(`❌ Failed to execute BUY order:`, errorMsg);
       result.error = errorMsg;
-      this.config.onTradeError(error, position);
+      this.config.onTradeError(err, position);
       return result;
     }
   }
@@ -218,11 +220,12 @@ export class TradeExecutor {
       this.config.onTradeExecuted(result);
       
       return result;
-    } catch (error: any) {
-      const errorMsg = error.message || 'Unknown error';
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      const errorMsg = err.message || 'Unknown error';
       console.error(`❌ Failed to execute SELL order:`, errorMsg);
       result.error = errorMsg;
-      this.config.onTradeError(error, position);
+      this.config.onTradeError(err, position);
       return result;
     }
   }

@@ -9,10 +9,10 @@ import {
 } from '../types';
 
 /**
- * Polymarket API Client
+ * Market API Client
  * Handles communication with Polymarket's various APIs
  */
-export class PolymarketClient {
+export class MarketApiClient {
   private client: AxiosInstance;
   private config: PolymarketConfig;
   private marketCache: Map<string, Market> = new Map();

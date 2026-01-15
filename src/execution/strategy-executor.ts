@@ -1,15 +1,15 @@
-import { AccountMonitor } from '../monitor/account-monitor';
-import { PolymarketClient } from '../api/polymarket-client';
-import { TradeExecutor } from './trade-executor';
+import { PositionTracker } from '../tracking/position-tracker';
+import { MarketApiClient } from '../clients/market-api-client';
+import { OrderExecutor } from './order-executor';
 import { Position, TradingStatus, MonitorOptions, CopyTradingConfig, CopyTradingStatus } from '../types';
 
 /**
- * Copy Trading Monitor
- * Wraps AccountMonitor and executes trades to copy the target account's positions
+ * Strategy Executor
+ * Wraps PositionTracker and executes trades to copy the target account's positions
  */
-export class CopyTradingMonitor {
-  private accountMonitor: AccountMonitor;
-  private tradeExecutor: TradeExecutor;
+export class StrategyExecutor {
+  private positionTracker: PositionTracker;
+  private orderExecutor: OrderExecutor;
   private config: CopyTradingConfig;
   private stats: CopyTradingStatus;
   private executedPositions: Set<string> = new Set(); // Track positions we've already executed
@@ -17,15 +17,15 @@ export class CopyTradingMonitor {
   private targetAddress: string;
 
   constructor(
-    client: PolymarketClient,
+    client: MarketApiClient,
     monitorOptions: MonitorOptions,
     copyTradingConfig: CopyTradingConfig
   ) {
     this.config = copyTradingConfig;
     this.targetAddress = monitorOptions.targetAddress;
     
-    // Initialize trade executor
-    this.tradeExecutor = new TradeExecutor(copyTradingConfig);
+    // Initialize order executor
+    this.orderExecutor = new OrderExecutor(copyTradingConfig);
     
     // Initialize statistics
     this.stats = {
@@ -36,8 +36,8 @@ export class CopyTradingMonitor {
       totalVolume: '0',
     };
 
-    // Create account monitor with custom update handler
-    this.accountMonitor = new AccountMonitor(client, {
+    // Create position tracker with custom update handler
+    this.positionTracker = new PositionTracker(client, {
       ...monitorOptions,
       onUpdate: (status: TradingStatus) => {
         // Call original callback if provided
@@ -67,13 +67,13 @@ export class CopyTradingMonitor {
   async start(): Promise<void> {
     if (!this.config.enabled) {
       console.log('⚠️  Copy trading is disabled. Starting monitor only...');
-      await this.accountMonitor.start();
+      await this.positionTracker.start();
       return;
     }
 
     console.log('🚀 Starting copy trading monitor...');
     console.log(`📊 Target address: ${this.targetAddress}`);
-    console.log(`👛 Trading wallet: ${this.tradeExecutor.getWalletAddress()}`);
+    console.log(`👛 Trading wallet: ${this.orderExecutor.getWalletAddress()}`);
     
     if (this.config.dryRun) {
       console.log('🔍 DRY RUN MODE: No actual trades will be executed');
@@ -83,16 +83,17 @@ export class CopyTradingMonitor {
 
     // Initialize trade executor
     try {
-      await this.tradeExecutor.initialize();
-    } catch (error: any) {
-      console.error('Failed to initialize trade executor:', error.message);
+      await this.orderExecutor.initialize();
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      console.error('Failed to initialize trade executor:', err.message);
       if (!this.config.dryRun) {
-        throw error;
+        throw err;
       }
     }
 
     // Start monitoring
-    await this.accountMonitor.start();
+    await this.positionTracker.start();
     console.log('✅ Copy trading monitor started');
   }
 
@@ -100,7 +101,7 @@ export class CopyTradingMonitor {
    * Stop monitoring and copy trading
    */
   stop(): void {
-    this.accountMonitor.stop();
+    this.positionTracker.stop();
     console.log('🛑 Copy trading monitor stopped');
   }
 
@@ -141,7 +142,7 @@ export class CopyTradingMonitor {
         console.log(`   Outcome: ${position.outcome}`);
         console.log(`   Quantity: ${position.quantity} shares @ $${position.price}`);
         
-        const result = await this.tradeExecutor.executeBuy(position);
+        const result = await this.orderExecutor.executeBuy(position);
         
         if (result.success) {
           this.executedPositions.add(position.id);
@@ -153,9 +154,10 @@ export class CopyTradingMonitor {
           this.stats.totalTradesFailed++;
           console.error(`Failed to execute buy order: ${result.error}`);
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         this.stats.totalTradesFailed++;
-        console.error(`Error executing buy order:`, error.message);
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`Error executing buy order:`, message);
       }
     }
 
@@ -171,7 +173,7 @@ export class CopyTradingMonitor {
         console.log(`   Outcome: ${position.outcome}`);
         console.log(`   Quantity: ${position.quantity} shares @ $${position.price}`);
         
-        const result = await this.tradeExecutor.executeSell(position);
+        const result = await this.orderExecutor.executeSell(position);
         
         if (result.success) {
           // Remove from executed positions (position is closed)
@@ -184,9 +186,10 @@ export class CopyTradingMonitor {
           this.stats.totalTradesFailed++;
           console.error(`Failed to execute sell order: ${result.error}`);
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         this.stats.totalTradesFailed++;
-        console.error(`Error executing sell order:`, error.message);
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`Error executing sell order:`, message);
       }
     }
 
@@ -205,20 +208,20 @@ export class CopyTradingMonitor {
    * Check if monitor is running
    */
   isRunning(): boolean {
-    return this.accountMonitor.isRunning();
+    return this.positionTracker.isRunning();
   }
 
   /**
    * Get account monitor instance
    */
-  getAccountMonitor(): AccountMonitor {
-    return this.accountMonitor;
+  getPositionTracker(): PositionTracker {
+    return this.positionTracker;
   }
 
   /**
-   * Get trade executor instance
+   * Get order executor instance
    */
-  getTradeExecutor(): TradeExecutor {
-    return this.tradeExecutor;
+  getOrderExecutor(): OrderExecutor {
+    return this.orderExecutor;
   }
 }

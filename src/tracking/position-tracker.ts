@@ -1,4 +1,4 @@
-import { PolymarketClient } from '../api/polymarket-client';
+import { MarketApiClient } from '../clients/market-api-client';
 import {
   TradingStatus,
   MonitorOptions,
@@ -7,18 +7,18 @@ import {
 } from '../types';
 
 /**
- * Polymarket Account Monitor
+ * Position Tracker
  * Monitors a target account's trading status and provides real-time updates
  */
-export class AccountMonitor {
-  private client: PolymarketClient;
+export class PositionTracker {
+  private client: MarketApiClient;
   private options: Required<MonitorOptions>;
   private pollIntervalId?: NodeJS.Timeout;
   private isMonitoring: boolean = false;
   private lastStatus?: TradingStatus;
   private lastPollTime?: number;
 
-  constructor(client: PolymarketClient, options: MonitorOptions) {
+  constructor(client: MarketApiClient, options: MonitorOptions) {
     this.client = client;
     this.options = {
       pollInterval: options.pollInterval || 30000, // Default 30 seconds
@@ -115,9 +115,10 @@ export class AccountMonitor {
       };
 
       return status;
-    } catch (error: any) {
-      this.options.onError(error);
-      throw error;
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.options.onError(err);
+      throw err;
     }
   }
 
@@ -197,12 +198,14 @@ export class AccountMonitor {
           }
         }
         
-        this.lastStatus = status;
-        this.options.onUpdate(status);
+      this.lastStatus = status;
+      this.options.onUpdate(status);
       }
-    } catch (error: any) {
-      console.error(`[${new Date().toLocaleTimeString()}] Error during update:`, error.message);
-      this.options.onError(error);
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      const message = err.message || 'Unknown error';
+      console.error(`[${new Date().toLocaleTimeString()}] Error during update:`, message);
+      this.options.onError(err);
     }
   }
 
