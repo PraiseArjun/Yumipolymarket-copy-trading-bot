@@ -154,16 +154,54 @@ export function loadConfig(): AppConfig {
 }
 
 /**
+ * Validate private key format
+ */
+function isValidPrivateKey(privateKey: string): boolean {
+  if (!privateKey || privateKey.trim().length === 0) {
+    return false;
+  }
+
+  // Remove 0x prefix if present
+  const key = privateKey.startsWith('0x') ? privateKey.slice(2) : privateKey;
+  
+  // Private key should be 64 hex characters (32 bytes)
+  if (key.length !== 64) {
+    return false;
+  }
+
+  // Check if it's a valid hex string
+  return /^[0-9a-fA-F]{64}$/.test(key);
+}
+
+/**
  * Validate configuration values
  */
 export function validateConfig(config: AppConfig): void {
   if (!config.targetAddress || !config.targetAddress.startsWith('0x')) {
-    throw new Error('Invalid target address format');
+    throw new Error(
+      'Invalid target address format. ' +
+      'Target address must start with "0x" and be a valid Ethereum address.\n' +
+      `Current value: ${config.targetAddress || '(empty)'}`
+    );
   }
 
   if (config.copyTrading.enabled) {
-    if (!config.copyTrading.privateKey || !config.copyTrading.privateKey.startsWith('0x')) {
-      throw new Error('Invalid private key format');
+    if (!config.copyTrading.privateKey || config.copyTrading.privateKey.trim().length === 0) {
+      throw new Error(
+        'Private key is required when copy trading is enabled.\n' +
+        'Please set PRIVATE_KEY in your .env file.\n' +
+        '⚠️  WARNING: Never share your private key!'
+      );
+    }
+
+    if (!isValidPrivateKey(config.copyTrading.privateKey)) {
+      throw new Error(
+        'Invalid private key format.\n' +
+        'Private key must be:\n' +
+        '  - 64 hexadecimal characters (with or without "0x" prefix)\n' +
+        '  - Example: 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef\n' +
+        `Current value: ${config.copyTrading.privateKey.substring(0, 20)}... (hidden for security)`
+      );
     }
 
     if (config.copyTrading.positionSizeMultiplier <= 0) {

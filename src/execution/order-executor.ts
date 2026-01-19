@@ -3,6 +3,41 @@ import { Wallet } from 'ethers';
 import { Position, CopyTradingConfig, TradeExecutionResult } from '../types';
 
 /**
+ * Signer adapter to bridge ethers v6 Wallet with ClobClient's expected interface
+ * ClobClient expects _signTypedData method which ethers v6 doesn't provide directly
+ */
+class SignerAdapter {
+  private wallet: Wallet;
+
+  constructor(wallet: Wallet) {
+    this.wallet = wallet;
+  }
+
+  get address(): string {
+    return this.wallet.address;
+  }
+
+  // ClobClient expects _signTypedData method
+  async _signTypedData(
+    domain: any,
+    types: Record<string, any[]>,
+    value: Record<string, any>
+  ): Promise<string> {
+    // Use ethers v6's signTypedData method
+    return await this.wallet.signTypedData(domain, types, value);
+  }
+
+  // Proxy other methods that might be needed
+  async signMessage(message: string | Uint8Array): Promise<string> {
+    return await this.wallet.signMessage(message);
+  }
+
+  async getAddress(): Promise<string> {
+    return this.wallet.address;
+  }
+}
+
+/**
  * Order Executor
  * Handles execution of trades on Polymarket using the CLOB API
  */
@@ -32,8 +67,11 @@ export class OrderExecutor {
     const wallet = new Wallet(this.config.privateKey);
     this.walletAddress = wallet.address;
 
-    // Initialize CLOB client
-    this.client = new ClobClient(this.config.clobHost, this.config.chainId, wallet as any);
+    // Create signer adapter to bridge ethers v6 with ClobClient's expected interface
+    const signerAdapter = new SignerAdapter(wallet);
+
+    // Initialize CLOB client with the adapter
+    this.client = new ClobClient(this.config.clobHost, this.config.chainId, signerAdapter as any);
   }
 
   /**
